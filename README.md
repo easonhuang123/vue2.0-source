@@ -437,7 +437,7 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 这个函数初始化一些与事件相关的属性，暂时还看不出什么东西来，先往下看
 
 
-### initEvents ###
+### initRender ###
 
 	export function initRender (vm: Component) {
 	  vm._vnode = null // the root of the child tree
