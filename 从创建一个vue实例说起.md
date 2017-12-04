@@ -1,97 +1,8 @@
-## 目录结构 ##
-
-这是目前我自己看过源码的一些目录（不完整）
-
-- build：
-	- alias 定义别名
-	- config 定义各种构建方式
-	- build
-	
-- dist
-	- vue.js 构建后生成的文件，npm run dev后生成vue.js用于调试
-	
-- flow
-	- flow是Facebook出品的，针对JavaScript的静态类型检查工具,为Javascript增加强类型系统的支持
-- src:
-	- compiler 编译器 将模板字符串转化为AST，由AST再转化为本地代码，其中对代码进行优化
-	- core
-		- components
-		- global-api
-		- instance 实例初始化
-		- observer 数据观察，响应式，双向绑定
-		- util 工具类
-		- vdom 虚拟dom
-	- platforms 各种使用vue的平台
-	- server 服务端使用
-
-
-
-## 从入口文件开始学习vue ##
-
-学习vue源码，把源码下下来之后第一件事当然是把项目跑起来啦，看看什么回事
-
-	npm install
-	npm run dev 
-
-我在运行第二条语句的时候出现了错误
-    
-    Error: Could not load C:\vue\src\core/config (imported by C:\vue\src\platforms\web\entry-runtime-with-compiler.js): ENOENT: no such file
-    or directory, open 'C:\vue\src\core\config'
-
-然后发现是rollup-plugin-alias插件中路径'/' 应该改为'\'，估计是有人提PR出现bug了，解决方法是将` node_modules/rollup-plugin-alias/dist/rollup-plugin-alias.js` 第81行：
-`var entry = options[toReplace];` 改为 `var entry = normalizeId(options[toReplace]);` 就没问题啦~
-
-run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，我们就可以通过引入它来写一下demo，边写栗子边打断点边看源码，这样会更加便于我们对源码的了解哦~
-
-然后我们看一下`package.json`文件`script`里面`dev`指令究竟做了什么：
-
-    rollup -w -c build/config.js --environment TARGET:web-full-dev
-
-这时候又有疑惑了，`rollup`又是啥，然后又谷歌了一番，得知这玩意儿大概也是一个前端模块的打包利器，通过tree-shaking的方式让你的bundle最小化（这是多亏es6中解构赋值的语法才形成的好方法），它还提供了sourcemap功能（其实我感觉和webpack差不多，就webpack实现了代码拆分按需加载，而rollup生成更简洁的代码一次性执行）
-
-再看回上文的指令，`-w` 指的是watch，`-c build/config.js` 指定配置文件是build/config.js，`--environment TARGET:web-full-dev`指的是process.env.TARGET的值等于 ‘web-full-dev’，emmm..接下来我们进到build/config.js看看里面是啥
-
-我找到了`web-full-dev`的对应代码
-
-	// Runtime+compiler development build (Browser)
-	  'web-full-dev': {
-	    entry: resolve('web/entry-runtime-with-compiler.js'),
-	    dest: resolve('dist/vue.js'),
-	    format: 'umd',
-	    env: 'development',
-	    alias: { he: './entity-decoder' },
-	    banner
-	  },
-
-
-所以跟着代码走到了`genConfig`函数，得知这个文件的输出结果是
-
-	module.exports = genConfig({
-	    entry: path.resolve(__dirname, '../src/platforms/web/web-runtime-with-compiler.js'),
-	    dest: path.resolve(__dirname, '../dist/vue.js'),
-	    format: 'umd',
-	    env: 'development',
-	    alias: { he: './entity-decoder' },
-	    banner
-	})
-
-所以入口文件就是`../src/platforms/web/web-runtime-with-compiler.js`，现在我们就可以一步一步寻找vue的足迹啦。
-
-从入口文件开始寻找它是从哪里import出vue的，然后一步一步的找
-
-	import Vue from './runtime/index'
-到
-
-	import Vue from 'core/index'
-再到
-
-	import Vue from './instance/index'
-
-终于...找到了core/instance/index文件，有种找到家的感觉有木有！instance文件夹从名字可以猜出应该是与vue实例初始化相关的文件，我们就从这里开始我们的vue之旅咯~！
+回顾上一章，我们找到了学习vue的起点——`core/instance/index`文件，我们将从创建一个vue实例开始学习~
 
 ### _init ###
 
-整体看一眼index文件，先看Vue函数
+在`core/instance/index`中，先看Vue函数
 
 	function Vue (options) {
 	  if (process.env.NODE_ENV !== 'production' &&
@@ -159,7 +70,7 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 	 * 这函数的功能是合并两个对象到一个新的对象中，而且这是用于实例化和继承相关的核心代码。
 	 */
 
-哭哭，感觉好难的样子，我们继续看吧，慢慢来。。
+emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 首先是对组件的名字进行检测是否合法
 
@@ -381,13 +292,13 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 继续吧，接下来的代码看起来会让人比较开心。
 
 	initLifecycle(vm)
-    initEvents(vm)
-    initRender(vm)
-    callHook(vm, 'beforeCreate')
-    initInjections(vm) // resolve injections before data/props
-    initState(vm)
-    initProvide(vm) // resolve provide after data/props
-    callHook(vm, 'created')
+	initEvents(vm)
+	initRender(vm)
+	callHook(vm, 'beforeCreate')
+	initInjections(vm) // resolve injections before data/props
+	initState(vm)
+	initProvide(vm) // resolve provide after data/props
+	callHook(vm, 'created')
 
 
 从这一连串的操作的执行顺序来看，先是初始化了生命周期和事件，然后调用beforeCreate钩子，再初始化inject，state和provide，然后再调用created钩子。我们一个一个进到相应的文件中看看代码
@@ -446,17 +357,11 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 	  const renderContext = parentVnode && parentVnode.context
 	  vm.$slots = resolveSlots(options._renderChildren, renderContext)
 	  vm.$scopedSlots = emptyObject
-	  // bind the createElement fn to this instance
-	  // so that we get proper render context inside it.
-	  // args order: tag, data, children, normalizationType, alwaysNormalize
-	  // internal version is used by render functions compiled from templates
+	  
 	  vm._c = (a, b, c, d) => createElement(vm, a, b, c, d, false)
-	  // normalization is always applied for the public version, used in
-	  // user-written render functions.
+	  
 	  vm.$createElement = (a, b, c, d) => createElement(vm, a, b, c, d, true)
 	
-	  // $attrs & $listeners are exposed for easier HOC creation.
-	  // they need to be reactive so that HOCs using them are always updated
 	  const parentData = parentVnode && parentVnode.data
 	
 	  /* istanbul ignore else */
@@ -497,7 +402,171 @@ emmm...这个我还没有弄懂，以后再看看
 	  }
 	}
 
-这个就厉害了，对props、methods、data、computed、watch等（起码我看得懂的）数据进行初始化，我们下次可以重点讨论一下这个~
+可以看出这对props、methods、data、computed、watch等数据进行初始化，我们先分别简单地看一下
+
+### initProps ###
+
+	function initProps (vm: Component, propsOptions: Object) {
+		const propsData = vm.$options.propsData || {}
+		const props = vm._props = {}
+		const keys = vm.$options._propKeys = []
+		const isRoot = !vm.$parent
+		observerState.shouldConvert = isRoot
+		for (const key in propsOptions) {
+			keys.push(key)
+			const value = validateProp(key, propsOptions, propsData, vm)
+			/* istanbul ignore else */
+			if (process.env.NODE_ENV !== 'production') {
+				const hyphenatedKey = hyphenate(key)
+				if (isReservedAttribute(hyphenatedKey) ||
+						config.isReservedAttr(hyphenatedKey)) {
+					warn(
+						`"${hyphenatedKey}" is a reserved attribute and cannot be used as component prop.`,
+						vm
+					)
+				}
+				defineReactive(props, key, value, () => {
+					if (vm.$parent && !isUpdatingChildComponent) {
+						warn(
+							`Avoid mutating a prop directly since the value will be ` +
+							`overwritten whenever the parent component re-renders. ` +
+							`Instead, use a data or computed property based on the prop's ` +
+							`value. Prop being mutated: "${key}"`,
+							vm
+						)
+					}
+				})
+			} else {
+				defineReactive(props, key, value)
+			}
+			if (!(key in vm)) {
+				proxy(vm, `_props`, key)
+			}
+		}
+		observerState.shouldConvert = true
+	}
+
+这么长的函数我抽取了一些关键的部分，`initProps`创建了变量`_props`，对传入的prop数据进行`defineReactive`操作，若是通过`Vue.extend()`得来的prop只管给它添加getter和setter就好，`defineReactive`是对数据进行双向绑定的操作，我们后面会具体学习一下。
+
+### initMethods ###
+
+继续看`initMethods`，这个不难理解，大概就是把这些函数绑定在vm实例上。
+
+	function initMethods (vm: Component, methods: Object) {
+		const props = vm.$options.props
+		for (const key in methods) {
+			if (process.env.NODE_ENV !== 'production') {
+				if (methods[key] == null) {
+					warn(
+						`Method "${key}" has an undefined value in the component definition. ` +
+						`Did you reference the function correctly?`,
+						vm
+					)
+				}
+				if (props && hasOwn(props, key)) {
+					warn(
+						`Method "${key}" has already been defined as a prop.`,
+						vm
+					)
+				}
+				if ((key in vm) && isReserved(key)) {
+					warn(
+						`Method "${key}" conflicts with an existing Vue instance method. ` +
+						`Avoid defining component methods that start with _ or $.`
+					)
+				}
+			}
+			vm[key] = methods[key] == null ? noop : bind(methods[key], vm)
+		}
+	}
+
+重点在最后一句`vm[key] = methods[key] == null ? noop : bind(methods[key], vm)`
+
+### initData ###
+
+接下来是data：
+
+	function initData (vm: Component) {
+		let data = vm.$options.data
+		data = vm._data = typeof data === 'function'
+			? getData(data, vm)
+			: data || {}
+		if (!isPlainObject(data)) {
+			data = {}
+			process.env.NODE_ENV !== 'production' && warn(
+				'data functions should return an object:\n' +
+				'https://vuejs.org/v2/guide/components.html#data-Must-Be-a-Function',
+				vm
+			)
+		}
+		// proxy data on instance
+		const keys = Object.keys(data)
+		const props = vm.$options.props
+		const methods = vm.$options.methods
+		let i = keys.length
+		while (i--) {
+			const key = keys[i]
+			if (process.env.NODE_ENV !== 'production') {
+				if (methods && hasOwn(methods, key)) {
+					warn(
+						`Method "${key}" has already been defined as a data property.`,
+						vm
+					)
+				}
+			}
+			if (props && hasOwn(props, key)) {
+				process.env.NODE_ENV !== 'production' && warn(
+					`The data property "${key}" is already declared as a prop. ` +
+					`Use prop default value instead.`,
+					vm
+				)
+			} else if (!isReserved(key)) {
+				proxy(vm, `_data`, key)
+			}
+		}
+		// observe data
+		observe(data, true /* asRootData */)
+	}
 
 
+先是对data的类型进行检查是否是function，是的话就转化为对象data，然后将其赋给变量_data，然后对data中变量名已经校验后，执行`observe(data, true /* asRootData */)`,`observe`是一个负责对数据进行监听然后触发watcher的东东，我们也把它放到后面数据双向绑定的内容中再进行分析。
 
+### initComputed && initWatch ###
+
+然后是`initComputed`，大概就是给每个computed的值创建一个watcher，然后给它们添加setter和getter。
+
+最后一个`initWatch`为每个watch中的变量执行`vm.$watch()`
+
+	Vue.prototype.$watch = function (
+		expOrFn: string | Function,
+		cb: any,
+		options?: Object
+	): Function {
+		const vm: Component = this
+		if (isPlainObject(cb)) {
+			return createWatcher(vm, expOrFn, cb, options)
+		}
+		options = options || {}
+		options.user = true
+		const watcher = new Watcher(vm, expOrFn, cb, options)
+		if (options.immediate) {
+			cb.call(vm, watcher.value)
+		}
+		return function unwatchFn () {
+			watcher.teardown()
+		}
+	}
+
+`vm.$watch()`也是创建了watcher实例，创建完成后再将其销毁。
+
+`initState`的流程基本过了一遍，对数据初始化并进行双向绑定，然后这些都初始化完成后调用了created生命钩子`callHook(vm, 'created')`，可见在created阶段vue做了这一系列的初始化以及数据的绑定。
+
+### $mount
+
+回到`_init`函数中，在初始化完成调用created钩子之后接下来的就是
+
+	if (vm.$options.el) {
+		vm.$mount(vm.$options.el)
+	}
+
+若传入的选项中有指定的dom节点，那么我们执行`$mount`函数，也就是说将实例绑定在指定的节点中。
