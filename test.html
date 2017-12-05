@@ -22,13 +22,18 @@
             data: {
                 msg: 'hello world'
             },
-            watched: {
+            watch: {
                 msg (val) {
-                    
+                    console.log(val)
                 }
             },
             components: {
                 'my-component': Child
+            },
+            mounted () {
+                setTimeout(()=>{
+                    this.msg = '!!!'
+                },1000)
             }
         })
         console.log(vue)

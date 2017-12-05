@@ -46,11 +46,7 @@
 
 ### resolveConstructorOptions ###
 
-	// merge options
     if (options && options._isComponent) {
-      // optimize internal component instantiation
-      // since dynamic options merging is pretty slow, and none of the
-      // internal component options needs special treatment.
       initInternalComponent(vm, options)
     } else {
       vm.$options = mergeOptions(
@@ -113,9 +109,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 对于data选项，是通过`mergeDataOrFn()`函数来合并
 
-	/**
-	 * Data
-	 */
 	export function mergeDataOrFn (
 	  parentVal: any,
 	  childVal: any,
@@ -129,11 +122,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 	    if (!parentVal) {
 	      return childVal
 	    }
-	    // when parentVal & childVal are both present,
-	    // we need to return a function that returns the
-	    // merged result of both functions... no need to
-	    // check if parentVal is a function here because
-	    // it has to be a function to pass previous merges.
 	    return function mergedDataFn () {
 	      return mergeData(
 	        typeof childVal === 'function' ? childVal.call(this) : childVal,
@@ -160,9 +148,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 按我的理解就是看子组件的data是不是一个函数，是的话就直接执行，然后再用`mergeData()`函数进行合并
 
-	/**
-	 * Helper that recursively merges two data objects together.
-	 */
 	function mergeData (to: Object, from: ?Object): Object {
 	  if (!from) return to
 	  let key, toVal, fromVal
@@ -183,9 +168,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 然后生命周期钩子是通过合并数组的方式
 
-	/**
-	 * Hooks and props are merged as arrays.
-	 */
 	function mergeHook (
 	  parentVal: ?Array<Function>,
 	  childVal: ?Function | ?Array<Function>
@@ -205,13 +187,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 而_assetTypes就是components、directives、filters这三个东东（我网上看到的，还不知道为什么，逃...)
 
-	/**
-	 * Assets
-	 *
-	 * When a vm is present (instance creation), we need to do
-	 * a three-way merge between constructor options, instance
-	 * options and parent options.
-	 */
 	function mergeAssets (
 	  parentVal: ?Object,
 	  childVal: ?Object,
@@ -233,9 +208,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 `extend()`函数我翻了一下是在shared/util文件中，其实就是把一个对象的属性复制给了一个新的空对象，名副其实的extend
 
-	/**
-	 * Mix properties into target object.
-	 */
 	export function extend (to: Object, _from: ?Object): Object {
 	  for (const key in _from) {
 	    to[key] = _from[key]
@@ -247,11 +219,11 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 
 终于，终于看过了一个重要函数，我们回头看`_init()`，我们走到了`mergeOptions()`，传递了三个参数
 
-	vm.$options = mergeOptions(
-		resolveConstructorOptions(vm.constructor),
-		options || {},
-		vm
-	)
+    vm.$options = mergeOptions(
+      resolveConstructorOptions(vm.constructor),
+      options || {},
+      vm
+    )
 
 我们看`resolveConstructorOptions()`
 
@@ -261,12 +233,8 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 	    const superOptions = resolveConstructorOptions(Ctor.super)
 	    const cachedSuperOptions = Ctor.superOptions
 	    if (superOptions !== cachedSuperOptions) {
-	      // super option changed,
-	      // need to resolve new options.
 	      Ctor.superOptions = superOptions
-	      // check if there are any late-modified/attached options (#4976)
 	      const modifiedOptions = resolveModifiedOptions(Ctor)
-	      // update base extend options
 	      if (modifiedOptions) {
 	        extend(Ctor.extendOptions, modifiedOptions)
 	      }
@@ -308,7 +276,6 @@ emmm。。感觉好难的样子，我们继续看吧，慢慢来。。
 	export function initLifecycle (vm: Component) {
 	  const options = vm.$options
 	
-	  // locate first non-abstract parent
 	  let parent = options.parent
 	  if (parent && !options.abstract) {
 	    while (parent.$options.abstract && parent.$parent) {
@@ -405,129 +372,129 @@ emmm...这个我还没有弄懂，以后再看看
 可以看出这对props、methods、data、computed、watch等数据进行初始化，我们先分别简单地看一下
 
 ### initProps ###
-
-	function initProps (vm: Component, propsOptions: Object) {
-		const propsData = vm.$options.propsData || {}
-		const props = vm._props = {}
-		const keys = vm.$options._propKeys = []
-		const isRoot = !vm.$parent
-		observerState.shouldConvert = isRoot
-		for (const key in propsOptions) {
-			keys.push(key)
-			const value = validateProp(key, propsOptions, propsData, vm)
-			/* istanbul ignore else */
-			if (process.env.NODE_ENV !== 'production') {
-				const hyphenatedKey = hyphenate(key)
-				if (isReservedAttribute(hyphenatedKey) ||
-						config.isReservedAttr(hyphenatedKey)) {
-					warn(
-						`"${hyphenatedKey}" is a reserved attribute and cannot be used as component prop.`,
-						vm
-					)
-				}
-				defineReactive(props, key, value, () => {
-					if (vm.$parent && !isUpdatingChildComponent) {
-						warn(
-							`Avoid mutating a prop directly since the value will be ` +
-							`overwritten whenever the parent component re-renders. ` +
-							`Instead, use a data or computed property based on the prop's ` +
-							`value. Prop being mutated: "${key}"`,
-							vm
-						)
-					}
-				})
-			} else {
-				defineReactive(props, key, value)
-			}
-			if (!(key in vm)) {
-				proxy(vm, `_props`, key)
-			}
-		}
-		observerState.shouldConvert = true
-	}
-
+```
+function initProps (vm: Component, propsOptions: Object) {
+  const propsData = vm.$options.propsData || {}
+  const props = vm._props = {}
+  const keys = vm.$options._propKeys = []
+  const isRoot = !vm.$parent
+  observerState.shouldConvert = isRoot
+  for (const key in propsOptions) {
+    keys.push(key)
+    const value = validateProp(key, propsOptions, propsData, vm)
+    /* istanbul ignore else */
+    if (process.env.NODE_ENV !== 'production') {
+      const hyphenatedKey = hyphenate(key)
+      if (isReservedAttribute(hyphenatedKey) ||
+          config.isReservedAttr(hyphenatedKey)) {
+        warn(
+          `"${hyphenatedKey}" is a reserved attribute and cannot be used as component prop.`,
+          vm
+        )
+      }
+      defineReactive(props, key, value, () => {
+        if (vm.$parent && !isUpdatingChildComponent) {
+          warn(
+            `Avoid mutating a prop directly since the value will be ` +
+            `overwritten whenever the parent component re-renders. ` +
+            `Instead, use a data or computed property based on the prop's ` +
+            `value. Prop being mutated: "${key}"`,
+            vm
+          )
+        }
+      })
+    } else {
+      defineReactive(props, key, value)
+    }
+    if (!(key in vm)) {
+      proxy(vm, `_props`, key)
+    }
+  }
+  observerState.shouldConvert = true
+}
+```
 这么长的函数我抽取了一些关键的部分，`initProps`创建了变量`_props`，对传入的prop数据进行`defineReactive`操作，若是通过`Vue.extend()`得来的prop只管给它添加getter和setter就好，`defineReactive`是对数据进行双向绑定的操作，我们后面会具体学习一下。
 
 ### initMethods ###
 
 继续看`initMethods`，这个不难理解，大概就是把这些函数绑定在vm实例上。
-
-	function initMethods (vm: Component, methods: Object) {
-		const props = vm.$options.props
-		for (const key in methods) {
-			if (process.env.NODE_ENV !== 'production') {
-				if (methods[key] == null) {
-					warn(
-						`Method "${key}" has an undefined value in the component definition. ` +
-						`Did you reference the function correctly?`,
-						vm
-					)
-				}
-				if (props && hasOwn(props, key)) {
-					warn(
-						`Method "${key}" has already been defined as a prop.`,
-						vm
-					)
-				}
-				if ((key in vm) && isReserved(key)) {
-					warn(
-						`Method "${key}" conflicts with an existing Vue instance method. ` +
-						`Avoid defining component methods that start with _ or $.`
-					)
-				}
-			}
-			vm[key] = methods[key] == null ? noop : bind(methods[key], vm)
-		}
-	}
-
+```
+function initMethods (vm: Component, methods: Object) {
+  const props = vm.$options.props
+  for (const key in methods) {
+    if (process.env.NODE_ENV !== 'production') {
+      if (methods[key] == null) {
+        warn(
+          `Method "${key}" has an undefined value in the component definition. ` +
+          `Did you reference the function correctly?`,
+          vm
+        )
+      }
+      if (props && hasOwn(props, key)) {
+        warn(
+          `Method "${key}" has already been defined as a prop.`,
+          vm
+        )
+      }
+      if ((key in vm) && isReserved(key)) {
+        warn(
+          `Method "${key}" conflicts with an existing Vue instance method. ` +
+          `Avoid defining component methods that start with _ or $.`
+        )
+      }
+    }
+    vm[key] = methods[key] == null ? noop : bind(methods[key], vm)
+  }
+}
+```
 重点在最后一句`vm[key] = methods[key] == null ? noop : bind(methods[key], vm)`
 
 ### initData ###
 
 接下来是data：
-
-	function initData (vm: Component) {
-		let data = vm.$options.data
-		data = vm._data = typeof data === 'function'
-			? getData(data, vm)
-			: data || {}
-		if (!isPlainObject(data)) {
-			data = {}
-			process.env.NODE_ENV !== 'production' && warn(
-				'data functions should return an object:\n' +
-				'https://vuejs.org/v2/guide/components.html#data-Must-Be-a-Function',
-				vm
-			)
-		}
-		// proxy data on instance
-		const keys = Object.keys(data)
-		const props = vm.$options.props
-		const methods = vm.$options.methods
-		let i = keys.length
-		while (i--) {
-			const key = keys[i]
-			if (process.env.NODE_ENV !== 'production') {
-				if (methods && hasOwn(methods, key)) {
-					warn(
-						`Method "${key}" has already been defined as a data property.`,
-						vm
-					)
-				}
-			}
-			if (props && hasOwn(props, key)) {
-				process.env.NODE_ENV !== 'production' && warn(
-					`The data property "${key}" is already declared as a prop. ` +
-					`Use prop default value instead.`,
-					vm
-				)
-			} else if (!isReserved(key)) {
-				proxy(vm, `_data`, key)
-			}
-		}
-		// observe data
-		observe(data, true /* asRootData */)
-	}
-
+```
+function initData (vm: Component) {
+  let data = vm.$options.data
+  data = vm._data = typeof data === 'function'
+    ? getData(data, vm)
+    : data || {}
+  if (!isPlainObject(data)) {
+    data = {}
+    process.env.NODE_ENV !== 'production' && warn(
+      'data functions should return an object:\n' +
+      'https://vuejs.org/v2/guide/components.html#data-Must-Be-a-Function',
+      vm
+    )
+  }
+  // proxy data on instance
+  const keys = Object.keys(data)
+  const props = vm.$options.props
+  const methods = vm.$options.methods
+  let i = keys.length
+  while (i--) {
+    const key = keys[i]
+    if (process.env.NODE_ENV !== 'production') {
+      if (methods && hasOwn(methods, key)) {
+        warn(
+          `Method "${key}" has already been defined as a data property.`,
+          vm
+        )
+      }
+    }
+    if (props && hasOwn(props, key)) {
+      process.env.NODE_ENV !== 'production' && warn(
+        `The data property "${key}" is already declared as a prop. ` +
+        `Use prop default value instead.`,
+        vm
+      )
+    } else if (!isReserved(key)) {
+      proxy(vm, `_data`, key)
+    }
+  }
+  // observe data
+  observe(data, true /* asRootData */)
+}
+```
 
 先是对data的类型进行检查是否是function，是的话就转化为对象data，然后将其赋给变量_data，然后对data中变量名已经校验后，执行`observe(data, true /* asRootData */)`,`observe`是一个负责对数据进行监听然后触发watcher的东东，我们也把它放到后面数据双向绑定的内容中再进行分析。
 
@@ -536,26 +503,27 @@ emmm...这个我还没有弄懂，以后再看看
 然后是`initComputed`，大概就是给每个computed的值创建一个watcher，然后给它们添加setter和getter。
 
 最后一个`initWatch`为每个watch中的变量执行`vm.$watch()`
-
-	Vue.prototype.$watch = function (
-		expOrFn: string | Function,
-		cb: any,
-		options?: Object
-	): Function {
-		const vm: Component = this
-		if (isPlainObject(cb)) {
-			return createWatcher(vm, expOrFn, cb, options)
-		}
-		options = options || {}
-		options.user = true
-		const watcher = new Watcher(vm, expOrFn, cb, options)
-		if (options.immediate) {
-			cb.call(vm, watcher.value)
-		}
-		return function unwatchFn () {
-			watcher.teardown()
-		}
-	}
+```
+Vue.prototype.$watch = function (
+  expOrFn: string | Function,
+  cb: any,
+  options?: Object
+): Function {
+  const vm: Component = this
+  if (isPlainObject(cb)) {
+    return createWatcher(vm, expOrFn, cb, options)
+  }
+  options = options || {}
+  options.user = true
+  const watcher = new Watcher(vm, expOrFn, cb, options)
+  if (options.immediate) {
+    cb.call(vm, watcher.value)
+  }
+  return function unwatchFn () {
+    watcher.teardown()
+  }
+}
+```
 
 `vm.$watch()`也是创建了watcher实例，创建完成后再将其销毁。
 
@@ -564,9 +532,9 @@ emmm...这个我还没有弄懂，以后再看看
 ### $mount
 
 回到`_init`函数中，在初始化完成调用created钩子之后接下来的就是
-
-	if (vm.$options.el) {
-		vm.$mount(vm.$options.el)
-	}
-
+```
+if (vm.$options.el) {
+  vm.$mount(vm.$options.el)
+}
+```
 若传入的选项中有指定的dom节点，那么我们执行`$mount`函数，也就是说将实例绑定在指定的节点中。
