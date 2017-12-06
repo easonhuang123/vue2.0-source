@@ -2,7 +2,7 @@
 
 这是目前我自己看过源码的一些目录（不完整）
 
-- build：
+- build
 	- alias 定义别名
 	- config 定义各种构建方式
 	- build
@@ -12,7 +12,7 @@
 	
 - flow
 	- flow是Facebook出品的，针对JavaScript的静态类型检查工具,为Javascript增加强类型系统的支持
-- src:
+- src
 	- compiler 编译器 将模板字符串转化为AST，由AST再转化为本地代码，其中对代码进行优化
 	- core
 		- components
@@ -23,7 +23,8 @@
 		- vdom 虚拟dom
 	- platforms 各种使用vue的平台
 	- server 服务端使用
-
+- test
+	- unit 单元测试
 
 
 ## 从入口文件开始学习vue ##
