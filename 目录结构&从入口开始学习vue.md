@@ -1,6 +1,6 @@
 ## 目录结构 ##
 
-这是目前我自己看过源码的一些目录（不完整）
+客官别急，先来看看源码的整体目录~以下是目前我自己看过vue源码的部分目录（不完整）
 
 - build
 	- alias 定义别名
@@ -39,7 +39,7 @@
     Error: Could not load C:\vue\src\core/config (imported by C:\vue\src\platforms\web\entry-runtime-with-compiler.js): ENOENT: no such file
     or directory, open 'C:\vue\src\core\config'
 
-然后发现是rollup-plugin-alias插件中路径'/' 应该改为'\'，估计是有人提PR出现bug了，解决方法是将` node_modules/rollup-plugin-alias/dist/rollup-plugin-alias.js` 第81行：
+然后发现是`rollup-plugin-alias`插件中路径'/' 应该改为'\'，估计是有人提PR出现bug了，解决方法是将` node_modules/rollup-plugin-alias/dist/rollup-plugin-alias.js` 第81行：
 `var entry = options[toReplace];` 改为 `var entry = normalizeId(options[toReplace]);` 就没问题啦~
 
 run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，我们就可以通过引入它来写一下demo，边写栗子边打断点边看源码，这样会更加便于我们对源码的了解哦~
@@ -48,9 +48,9 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 
     rollup -w -c build/config.js --environment TARGET:web-full-dev
 
-这时候又有疑惑了，`rollup`又是啥，然后又谷歌了一番，得知这玩意儿大概也是一个前端模块的打包利器，通过tree-shaking的方式让你的bundle最小化（这是多亏es6中解构赋值的语法才形成的好方法），它还提供了sourcemap功能（其实我感觉和webpack差不多，就webpack实现了代码拆分按需加载，而rollup生成更简洁的代码一次性执行）
+这时候又有疑惑了，`rollup`又是啥，然后又谷歌了一番，得知这玩意儿大概也是一个前端模块的打包利器，通过`tree-shaking`的方式让你的`bundle`最小化（这是多亏`es6`中解构赋值的语法才形成的好方法），它还提供了`sourcemap`功能（其实我感觉和`webpack`差不多，就webpack实现了代码拆分按需加载，而`rollup`生成更简洁的代码一次性执行）
 
-再看回上文的指令，`-w` 指的是watch，`-c build/config.js` 指定配置文件是build/config.js，`--environment TARGET:web-full-dev`指的是process.env.TARGET的值等于 ‘web-full-dev’，emmm..接下来我们进到build/config.js看看里面是啥
+再看回上文的指令，`-w` 指的是`watch`，`-c build/config.js` 指定配置文件是`build/config.js`，`--environment TARGET:web-full-dev`指的是`process.env.TARGET`的值等于 `web-full-dev`，emmm..接下来我们进到`build/config.js`看看里面是啥
 
 我找到了`web-full-dev`的对应代码
 
@@ -88,4 +88,4 @@ run成功后会在`dist`文件夹中生成`vue.js`文件，有了这个文件，
 
 	import Vue from './instance/index'
 
-终于...找到了core/instance/index文件，有种找到家的感觉有木有！instance文件夹从名字可以猜出应该是与vue实例初始化相关的文件，我们就从这里开始我们的vue之旅咯~！
+终于...找到了`core/instance/index`文件，有种找到家的感觉有木有！`instance`文件夹从名字可以猜出应该是与vue实例初始化相关的文件，下一篇我们就从这里开始我们的vue之旅咯~！
