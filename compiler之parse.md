@@ -104,14 +104,24 @@ const vue = new Vue({
 接着是一个超长函数`parseHTML`，认真一下原来它是来自`html-parser.js`，一长串的是传入的参数，参数中除了一些标签之外还有几个重要的函数，start，end，chars 和 comment，他们的功能分别是对元素开始时的处理，对元素结束时的处理，对文本的处理，对注释的处理。具体实现的话我们结合`html-parser.js`中调用时再进行分析。
 
 ### src/compiler/parser/html-parser.js
-直接看函数`parseHTML`，定义了一个栈用来存放元素，还有一些标签（先忽略，用到再看），接下来就是一个`while(html)`的循环操作，大家应该能猜到这操作就是不断地处理模板，每一部分处理完后切割剩余的进入循环继续处理。其中先提一下`advance`函数，它是负责将索引`index`向前移动，指向未处理模板的开始位置，进行模板切割。
+直接看函数`parseHTML`，定义了一个栈用来存放元素，还有一些标签（先忽略，用到再看），接下来就是一个`while(html)`的循环操作，大家应该能猜到这操作就是不断地处理模板，每一部分处理完后切割剩余的进入循环继续处理。
+
+为了方便理解，我在各个条件判断中console.log出一些信息，可以直观的看出我这个小栗子的整个解析步骤。你们可以配合着代码看噢。
+
+![htmlParser](./images/htmlParser.png)
+
+看回代码，我是在textend的那几个判断里console.log的，细心的同学发现了我们一直都在一个大条件中执行`if (!lastTag || !isPlainTextElement(lastTag))`，只有当模板是script,style,textarea的时候才会进入``else``循环，我们暂时不讨论那种情况哈。
+
+当我们脑子开始清晰了，知道大概的流程后，我们讨论一下主要的一些函数。
+
+其中先提一下多次出现的`advance`函数，它是负责将索引`index`向前移动，指向未处理模板的开始位置，进行模板切割。
 ```
 function advance (n) {
     index += n
     html = html.substring(n)
 }
 ```
-我们进入循环，继续分析。我们先进入`textEnd === 0`第一个条件中
+然后我们进入`textend === 0`的第一部分看看
 ```
 // 过滤掉注释<!-- -->，从‘-->’后开始读取
 if (comment.test(html)) {
@@ -164,7 +174,7 @@ if (startTagMatch) {
     continue
 }
 ```
-先是对注释`<!-- -->`和`<![ ]>`，还有`Doctype`进行过滤，然后我们一开始没有`endTag`，所以没有结束标签的相关处理，接着是`startTagMatch`，我们看看函数`parseStartTag`
+这段函数主要是过滤作用，对注释`<!-- -->`和`<![ ]>`，还有`Doctype`进行过滤，`endTagMatch`的判断到后面再讲，接着是`startTagMatch`，我们看看函数`parseStartTag`
 
 ```
   function parseStartTag () {
@@ -269,14 +279,199 @@ stack = [
 
 `start`整体流程：
 - 定义初始的抽象语法树AST
+```
+{
+  type: 1, // type = 1 为dom节点
+  tag, // 标签名
+  attrsList: attrs, // 属性数组
+  attrsMap: makeAttrsMap(attrs), // 属性映射
+  parent, // 父节点
+  children: [] // 子节点节点
+}
+```
+start函数就是慢慢地给这个AST进行装饰，添加更多的属性和标志
+
 - 对AST进行预处理
+
+`preTransforms`预处理操作是将动态类型绑定`v-model`展开成`v-if-else`链，在我们的小栗子中可以忽略。
+
 - 对vue的指令进行处理v-pre、v-if、v-for、v-once、slot、key、ref
+
+对于指令的处理我们到时候另开篇章讲述~
+
 - 对根节点进行处理
+
+对根节点进行约束处理，不能是`slot`，`template`，`v-for`这些多元素标签，但是允许用`v-if`，` v-else-if` 和 `v-else`。
+
 - 元素父子关系的绑定
+
+绑定父子关系，也就是设置`parent`和`children`的值。
+
 - 将当前AST入栈
+
+假如不是个单标签元素就讲这个AST入栈
+
 - 对AST进行后处理
 
-指令部分我们日后再逐一分析，我们可以输出AST、堆栈或者一些结构比较复杂的变量，通过观察它们可以方便我们的理解，也不会太枯燥。
+不知道是啥，，找都找不到
 
+看完`start`，我们看看结束标签的处理`parseEndTag`。
+```
+  function parseEndTag(tagName, start, end) {
+    let pos, lowerCasedTagName
+    if (start == null) start = index
+    if (end == null) end = index
+
+    if (tagName) {
+      lowerCasedTagName = tagName.toLowerCase()
+    }
+
+    // 找出最靠近的同类型标签
+    if (tagName) {
+      for (pos = stack.length - 1; pos >= 0; pos--) {
+        if (stack[pos].lowerCasedTag === lowerCasedTagName) {
+          break
+        }
+      }
+    } else {
+      pos = 0
+    }
+
+    if (pos >= 0) {
+      // 出栈
+      for (let i = stack.length - 1; i >= pos; i--) {
+        if (options.end) {
+          options.end(stack[i].tag, start, end)
+        }
+      }
+      stack.length = pos
+      lastTag = pos && stack[pos - 1].tag
+    } else if (lowerCasedTagName === 'br') {
+      if (options.start) {
+        options.start(tagName, [], true, start, end)
+      }
+    } else if (lowerCasedTagName === 'p') {
+      if (options.start) {
+        options.start(tagName, [], false, start, end)
+      }
+      if (options.end) {
+        options.end(tagName, start, end)
+      }
+    }
+  }
+```
+大致操作就是为结束标签寻找对应的开始标签，进行出栈操作，执行`options.end(tagName, start, end)`，我们看看`end`函数的出栈操作
+
+```
+// 出栈
+    end () {
+      // 取出stack中的最后一个元素
+      const element = stack[stack.length - 1]
+      // 取出该元素的最后一个子元素
+      const lastNode = element.children[element.children.length - 1]
+      // 如果最后一个子元素是纯文本' '则删除，这是因为我们的模板一般都会缩进，都会有换行，所以这里是清除换行等添加的内容
+      if (lastNode && lastNode.type === 3 && lastNode.text === ' ' && !inPre) {
+        element.children.pop()
+      }
+      // stack长度减一
+      stack.length -= 1
+      // currentParent变为栈中最后一个元素
+      currentParent = stack[stack.length - 1]
+      // 处理v-pre或pre的结束标签
+      endPre(element)
+    },
+```
+挺简单的，都在注释里解释清楚了。
+对于栈的处理，我也console.table出来了，在我们的栗子中，就是
+div
+div + p
+div
+div + a
+div
+这是个不断出栈入栈取出元素进行处理的过程~ 
+
+![stack](./images/stack.png)
+
+
+再说说一些我们还没说到的细节，先是`chars`函数。
+```
+chars (text: string) {
+  const children = currentParent.children
+  text = inPre || text.trim()
+    ? isTextTag(currentParent) ? text : decodeHTMLCached(text)
+    : preserveWhitespace && children.length ? ' ' : ''
+  if (text) {
+    let expression
+    if (!inVPre && text !== ' ' && (expression = parseText(text, delimiters))) {
+      children.push({
+        type: 2,
+        expression,
+        text
+      })
+    } else if (text !== ' ' || !children.length || children[children.length - 1].text !== ' ') {
+      children.push({
+        type: 3,
+        text
+      })
+    }
+  }
+}
+```
+`chars`函数主要是对文本进行解析，分两种情况，一种是文本需要解析type = 2，例如栗子中`{{msg}}`，这就要执行`parseText`函数，一种是纯文本type = 3。看看`parseText`，在`text-parser.js`文件中。
+```
+export function parseText (
+  text: string,
+  delimiters?: [string, string]
+): string | void {
+  // 分隔符正则
+  const tagRE = delimiters ? buildRegex(delimiters) : defaultTagRE
+  if (!tagRE.test(text)) {
+    return
+  }
+  const tokens = []
+  let lastIndex = tagRE.lastIndex = 0
+  let match, index
+  while ((match = tagRE.exec(text))) {
+    index = match.index
+    // 存入文本
+    if (index > lastIndex) {
+      tokens.push(JSON.stringify(text.slice(lastIndex, index)))
+    }
+    // 存入解析文本以 _s(xxxx) 的形式
+    const exp = parseFilters(match[1].trim())
+    tokens.push(`_s(${exp})`)
+    lastIndex = index + match[0].length
+  }
+  // 存入尾部文本
+  if (lastIndex < text.length) {
+    tokens.push(JSON.stringify(text.slice(lastIndex)))
+  }
+  // 用 + 拼接所有文本
+  return tokens.join('+')
+}
+```
+注释里说得很明白啦，需要解析的文本转换为` _s(xxxx) `的形式，然后用`+`符合拼接起来。
+
+最后是`comment`函数。
+```
+comment (text: string) {
+  currentParent.children.push({
+    type: 3,
+    text,
+    isComment: true
+  })
+}
+```
+也就是添加注释类型的子节点。
+
+最后输出给你们看看这棵树的大致结构，由于太长了就不具体展开啦你们可以自己弄一个试试：
+![AST](./images/ast.png)
+
+与`parser`相关的知识我们基本都过了一遍，我建议大家还是自己写个小demo，在需要的地方或者你觉得不懂的地方进行`console`，可以从输出的东西更直观地理解这个解析过程~~
+
+下一篇文章中我们会继续讲解`compiler`的优化过程`optimize`和生成`render`代码的过程~ 若有理解错误之处请随时提出，谢谢！
+
+
+谢谢你们这么好看还来看我的文章~ 一起努力一起成长~
 
 
