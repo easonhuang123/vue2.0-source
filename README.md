@@ -9,3 +9,9 @@
 ### 第三章  [数据的双向绑定（数据观测）](./数据的双向绑定（数据观测）.md) ###
 
 ### 第四章  [GlobalAPI](./GlobalAPI.md) ###
+
+### 第五章  [compiler之简述](./compiler之简述.md) ###
+
+### 第六章  [compiler之parse](./compiler之parse.md) ###
+
+### 第七章  [compiler之optimize](./compiler之optimize.md) ###
