@@ -186,4 +186,173 @@ function genSlot (el: ASTElement, state: CodegenState): string {
 }
 ```
 
-假如以上条件都不是。则这就是个普通的节点了，先判断它是否有子组件，执行`genComponent`，否则的话执行普通节点的步骤，验证是否是空节点，执行`genData`，再执行`genChildren`进行子节点归一化处理的级别标记。我们也忽略有子组件的可能，直接看最普通的做法。
+如果该节点是个组件，则执行`genComponent`
+```
+function genComponent (
+  componentName: string,
+  el: ASTElement,
+  state: CodegenState
+): string {
+  const children = el.inlineTemplate ? null : genChildren(el, state, true)
+  return `_c(${componentName},${genData(el, state)}${
+    children ? `,${children}` : ''
+  })`
+}
+```
+里面主要就是执行了`genChildren`和`genData`，我们再看回`genElement`中最后一步
+```
+const data = el.plain ? undefined : genData(el, state)
+
+const children = el.inlineTemplate ? null : genChildren(el, state, true)
+code = `_c('${el.tag}'${
+    data ? `,${data}` : '' // data
+}${
+    children ? `,${children}` : '' // children
+})`
+```
+也是主要执行了`genChildren`和`genData`这两个函数，然后返回`_c`结构的字符串。
+
+先看看`genChildren`
+```
+export function genChildren (
+  el: ASTElement,
+  state: CodegenState,
+  checkSkip?: boolean,
+  altGenElement?: Function,
+  altGenNode?: Function
+): string | void {
+  const children = el.children
+  if (children.length) {
+    const el: any = children[0]
+    // optimize single v-for
+    if (children.length === 1 &&
+      el.for &&
+      el.tag !== 'template' &&
+      el.tag !== 'slot'
+    ) {
+      return (altGenElement || genElement)(el, state)
+    }
+    const normalizationType = checkSkip
+      ? getNormalizationType(children, state.maybeComponent)
+      : 0
+    const gen = altGenNode || genNode
+    return `[${children.map(c => gen(c, state)).join(',')}]${
+      normalizationType ? `,${normalizationType}` : ''
+    }`
+  }
+}
+```
+先是对单个`v-for`子节点进行特别处理，应该是服务端vue方面的优化方案；接着是得到对子元素数组进行归一化处理的处理级别`getNormalizationType`。
+
+```
+function getNormalizationType (
+  children: Array<ASTNode>,
+  maybeComponent: (el: ASTElement) => boolean
+): number {
+  let res = 0
+  for (let i = 0; i < children.length; i++) {
+    const el: ASTNode = children[i]
+    if (el.type !== 1) {
+      continue
+    }
+    // el上有`v-for`或标签名是`template`或`slot`
+    // 或者el是if块，但块内元素有内容符合上述三个条件的
+    if (needsNormalization(el) ||
+        (el.ifConditions && el.ifConditions.some(c => needsNormalization(c.block)))) {
+      res = 2
+      break
+    }
+    // el是自定义组件
+    // 或el是if块，但块内元素有自定义组件的
+    if (maybeComponent(el) ||
+        (el.ifConditions && el.ifConditions.some(c => maybeComponent(c.block)))) {
+      res = 1
+    }
+  }
+  return res
+}
+```
+该函数返回对子元素数组进行归一化处理的处理级别：
+
+    0: 不需处理
+    1: 需要简单归一化处理
+    2: 需要深度归一化处理
+
+目前只是进行标记而已，具体的处理在vdom部分才实现，所谓的归一化其实就是将多维的子数组转化为一维的，对于不同的子元素进行不同方式的归一化处理。
+
+完成对归一化处理的标记，继续执行`genNode`
+```
+function genNode (node: ASTNode, state: CodegenState): string {
+  if (node.type === 1) {
+    return genElement(node, state)
+  } if (node.type === 3 && node.isComment) {
+    return genComment(node)
+  } else {
+    return genText(node)
+  }
+}
+```
+对子节点进行分类处理，假如`type === 1`即是一棵子树的话则执行`genElement`；假如是注释的话执行`genComment`；否则就是文本节点，执行`genText`。
+```
+export function genComment (comment: ASTText): string {
+  return `_e(${JSON.stringify(comment.text)})`
+}
+
+export function genText (text: ASTText | ASTExpression): string {
+  return `_v(${text.type === 2
+    ? text.expression // no need for () because already wrapped in _s()
+    : transformSpecialNewlines(JSON.stringify(text.text))
+  })`
+}
+```
+注释节点以`_e`结构的字符串表示，文本节点以`_v`结构的字符串拼接，文本节点又分为需要解析的文本，就是parser阶段经过处理的`_s`字符串，还有就是纯文本节点。
+
+接着我们看看`genData`,先是对指令进行操作，关于指令的学习我们统一另开篇章讲述。
+```
+const dirs = genDirectives(el, state)
+```
+然后就是对一些属性的操作，`key`，`ref`，`refInFor`，`pre`，`tag`，纯粹将他们拼接起来。
+```
+  if (el.key) {
+    data += `key:${el.key},`
+  }
+  if (el.ref) {
+    data += `ref:${el.ref},`
+  }
+  if (el.refInFor) {
+    data += `refInFor:true,`
+  }
+  if (el.pre) {
+    data += `pre:true,`
+  }
+  if (el.component) {
+    data += `tag:"${el.tag}",`
+  }
+```
+然后是对`attrs`和`props`执行`genProps`
+```
+function genProps (props: Array<{ name: string, value: string }>): string {
+  let res = ''
+  for (let i = 0; i < props.length; i++) {
+    const prop = props[i]
+    res += `"${prop.name}":${transformSpecialNewlines(prop.value)},`
+  }
+  return res.slice(0, -1) // 去掉','
+}
+```
+也就是遍历数组转化为字符串的形式而已，`transformSpecialNewlines`是对一些特殊字符的处理
+```
+// 2028的字符为行分隔符，2029的字符为段落分隔符会
+// 它们被浏览器理解为换行，而在Javascript的字符串表达式中是不允许换行的，从而导致错误
+function transformSpecialNewlines (text: string): string {
+  return text
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+}
+```
+接着是对`events`和`nativeEvents`执行`genHandlers`，`genHandlers`是对v-on事件的处理以及其中修饰符的处理，接下来是对slot，v-model，inline-template以及对v-bind，v-on指令的处理，在这里就不再展开讲述。
+
+这部分只是大概讲述了AST转化为render字符串的大致流程和部分函数学习，没有提及的地方，大家有兴趣的话可以自己学习一下~ 希望这篇文章能让你对vue编译部分的学习有所帮助，下一篇我们就开始一起学习vdom，看看vue是怎么实现虚拟DOM的 : )
+
+
+
